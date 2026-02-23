@@ -1,0 +1,136 @@
+package pt.kpmg.kyc.screening;
+
+// JNativeHook imports for global listening
+import com.github.kwhat.jnativehook.GlobalScreen;
+import com.github.kwhat.jnativehook.NativeHookException;
+import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent;
+import com.github.kwhat.jnativehook.keyboard.NativeKeyListener;
+import com.github.kwhat.jnativehook.mouse.NativeMouseEvent;
+import com.github.kwhat.jnativehook.mouse.NativeMouseInputListener;
+
+// Java AWT imports for mouse control and screen size
+import java.awt.AWTException;
+import java.awt.Dimension;
+import java.awt.Robot;
+import java.awt.Toolkit;
+
+// Java Util imports for Random and Logging
+import java.util.Random;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+// TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
+// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
+public class Main {
+  // Guarda o timestamp da última atividade do usuário (mouse ou teclado)
+  // 'volatile' garante que o valor seja o mesmo entre diferentes threads
+  private static volatile long lastUserActivityTimestamp;
+
+  // Define o tempo de inatividade em segundos antes de mover o mouse
+  private static final int INACTIVITY_DELAY_SECONDS = 30;
+
+  public static void main(String[] args) {
+    // Desativa o logging verboso da biblioteca JNativeHook
+    Logger logger = Logger.getLogger(GlobalScreen.class.getPackage().getName());
+    logger.setLevel(Level.WARNING);
+    logger.setUseParentHandlers(false);
+
+    try {
+      // Inicializa e registra o hook nativo para ouvir eventos globais
+      GlobalScreen.registerNativeHook();
+    } catch (NativeHookException e) {
+      System.err.println("Houve um problema ao registrar o hook nativo.");
+      System.err.println(e.getMessage());
+      System.exit(1);
+    }
+
+    // Define o timestamp inicial para o momento em que o programa começa
+    lastUserActivityTimestamp = System.currentTimeMillis();
+
+    // Cria um ouvinte para os eventos de mouse e teclado
+    UserActivityListener listener = new UserActivityListener();
+    GlobalScreen.addNativeMouseListener(listener);
+    GlobalScreen.addNativeMouseMotionListener(listener);
+    GlobalScreen.addNativeKeyListener(listener);
+
+    // Garante que o hook seja desregistrado ao fechar o programa
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+      try {
+        System.out.println("Desregistrando o hook nativo...");
+        GlobalScreen.unregisterNativeHook();
+      } catch (NativeHookException e) {
+        e.printStackTrace();
+      }
+    }));
+
+    System.out.println("Serviço de movimentação inteligente iniciado.");
+    System.out.println("O mouse será movido após " + INACTIVITY_DELAY_SECONDS + " segundos de inatividade.");
+    System.out.println("Pressione Ctrl+C para encerrar.");
+
+    try {
+      Robot robot = new Robot();
+      Random random = new Random();
+      Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+
+      // Loop principal do serviço
+      while (true) {
+        long currentTime = System.currentTimeMillis();
+        long inactiveMillis = currentTime - lastUserActivityTimestamp;
+
+        // Verifica se o tempo de inatividade ultrapassou o limite definido
+        if (inactiveMillis >= INACTIVITY_DELAY_SECONDS * 1000) {
+          System.out.println("Inatividade detectada! Movendo o mouse...");
+
+          int x = random.nextInt(screenSize.width);
+          int y = random.nextInt(screenSize.height);
+          robot.mouseMove(x, y);
+
+          // IMPORTANTE: Reinicia o contador após mover o mouse
+          // para esperar mais 30 segundos de inatividade
+          lastUserActivityTimestamp = System.currentTimeMillis();
+        }
+
+        // Pausa o loop por 1 segundo para não consumir CPU desnecessariamente
+        Thread.sleep(1000);
+      }
+
+    } catch (AWTException | InterruptedException e) {
+      e.printStackTrace();
+    }
+  }
+
+  // Classe interna que implementa os ouvintes de atividade
+  static class UserActivityListener implements NativeMouseInputListener, NativeKeyListener {
+
+    // Este método é chamado sempre que uma tecla é pressionada
+    @Override
+    public void nativeKeyPressed(NativeKeyEvent e) {
+      updateTimestamp();
+    }
+
+    // Este método é chamado sempre que o mouse é movido
+    @Override
+    public void nativeMouseMoved(NativeMouseEvent e) {
+      updateTimestamp();
+    }
+
+    // Este método é chamado sempre que um botão do mouse é pressionado
+    @Override
+    public void nativeMousePressed(NativeMouseEvent e) {
+      updateTimestamp();
+    }
+
+    // Método centralizado para atualizar o timestamp da última atividade
+    private void updateTimestamp() {
+      //System.out.println("Atividade do usuário detectada!");
+      lastUserActivityTimestamp = System.currentTimeMillis();
+    }
+
+    // Métodos não utilizados da interface, podem ficar vazios
+    @Override public void nativeKeyReleased(NativeKeyEvent e) {}
+    @Override public void nativeKeyTyped(NativeKeyEvent e) {}
+    @Override public void nativeMouseClicked(NativeMouseEvent e) {}
+    @Override public void nativeMouseReleased(NativeMouseEvent e) {}
+    @Override public void nativeMouseDragged(NativeMouseEvent e) { updateTimestamp(); }
+  }
+}
