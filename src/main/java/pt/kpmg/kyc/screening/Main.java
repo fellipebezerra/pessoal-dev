@@ -25,6 +25,7 @@ public class Main {
   // Guarda o timestamp da última atividade do usuário (mouse ou teclado)
   // 'volatile' garante que o valor seja o mesmo entre diferentes threads
   private static volatile long lastUserActivityTimestamp;
+  //71KsNLeifA9k9HPmMC7FXx0EPp6dw0aG
 
   // Define o tempo de inatividade em segundos antes de mover o mouse
   private static final int INACTIVITY_DELAY_SECONDS = 30;
